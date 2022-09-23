@@ -1,87 +1,136 @@
 import socket
 import threading
+import signal
+
+signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 HOST, PORT = "localhost", 8989
 FORMAT = "UTF-8"
 
-user_name = input("> Your name: ")
+running = True
+can_run = True
+
+try:
+    user_name = input("> Your name: ")
+except EOFError:
+    quit()
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-socket.connect((HOST, PORT))
+
+try:
+    socket.connect((HOST, PORT))
+except ConnectionRefusedError:
+    print("Error: Server is offline...")
+    socket.close()
+    quit()
+
+
 socket.send(user_name.encode(FORMAT))
 
 print("1: Create a session")
 print("2: Join a session")
-quest = input("> ")
-if quest == '1':
-    socket.send(quest.encode(FORMAT))
-elif quest == '2':
-    socket.send(quest.encode(FORMAT))
+
+quest = None
 while True:
+
+    try:
+        quest = input("> ")
+        if quest == '1' or quest == '2':
+            break
+    except EOFError:
+        socket.send("disconnected".encode(FORMAT))
+        can_run = False
+        running = False
+        break
+
+
+if quest == '1':
+    try:
+        socket.send(quest.encode(FORMAT))
+    except ConnectionResetError:
+        print("Error: Server has rebooted...")
+        running = False
+elif quest == '2':
+    try:
+        socket.send(quest.encode(FORMAT))
+    except ConnectionResetError:
+        print("Error: Server has rebooted...")
+        running = False
+
+
+while running:
+
     if quest == '1':
-        id_session = input("> create an id: ")
+
+        try:
+            id_session = input("> create an id: ")
+            password_session = input("> create a password: ")
+        except EOFError:
+            break
+        except ConnectionResetError:
+            print("Error: Server has rebooted...")
+            socket.close(); quit()
+
         socket.send(id_session.encode(FORMAT))
-        password_session = input("> create a password: ")
         socket.send(password_session.encode(FORMAT))
-        response = socket.recv(24).decode(FORMAT)
+        response = socket.recv(500).decode(FORMAT)
+
         if response == id_session:
             break
-            # IT'S GOOD!
         else:
             print(f"Server: {response}")
-            # RETRY
+
     elif quest == '2':
-        id_session = input("> id: ")
-        password_session = input("> password: ")
+
+        try:
+            id_session = input("> id: ")
+            password_session = input("> password: ")
+        except EOFError:
+            break
+        except ConnectionResetError:
+            print("Error: Server has rebooted...")
+            socket.close(); quit()
+
         socket.send(id_session.encode(FORMAT))
         socket.send(password_session.encode(FORMAT))
-        response = socket.recv(24).decode(FORMAT)
+        response = socket.recv(500).decode(FORMAT)
+
         if response == id_session:
             break
-            # IT'S GOOD!
         else:
             print(f"Server: {response}")
-            # RETRY
 
 
 def sending():
-    running = True
-    while running:
+    while True:
 
         try:
             message_input = input("").encode(FORMAT)
         except EOFError:
-            print("Error: leaving")
-            running = False
             break
 
         try:
             socket.send(message_input)
         except OSError:
-            print("Error: SERVER OFF, message not sent...")
-            running = False
+            print("Error: SERVER OFF or rebooted, message not sent...")
             break
 
     socket.close()
 
 
 def recving():
-    running = True
     s_data = ""
-    while running:
+    while True:
 
         try:
             s_data = socket.recv(500).decode(FORMAT)
         except ConnectionAbortedError:
-            running = False
-            print("Error: leaving")
             break
         except ConnectionResetError:
-            print("Error: SERVER OFF, battery is low...")
+            print("Error: SERVER OFF or rebooted, battery is low...")
             break
 
         if s_data == "quit":
-            running = False
             print("Error: SERVER OFF, is shutdowned")
             break
 
@@ -89,7 +138,6 @@ def recving():
 
     socket.close()
 
-threading.Thread(target=sending).start()
-threading.Thread(target=recving).start()
-
-
+if can_run != False:
+    threading.Thread(target=sending).start()
+    threading.Thread(target=recving).start()

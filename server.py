@@ -10,6 +10,7 @@ FORMAT = "UTF-8"
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket.bind((HOST, PORT))
 socket.listen()
+
 os.system("cls")
 print("> Server ON <")
 
@@ -22,17 +23,48 @@ sessions = [[["main_session", "any"]]]
 
 def handling(user_name, s_client, h_client, stop_thread):
 
+    can_run = True
+    running = True
+
     id_session = ""
     password_session = ""
 
     print(f"{user_name} has join the main session!")
 
-    option = s_client.recv(4).decode(FORMAT)
-    running = True
+    option = ""
+    try:
+        option = s_client.recv(24).decode(FORMAT)
+    except ConnectionAbortedError:
+        running = False
+        can_run = False
+ 
+
+    if option == "" or option == "disconnected":
+        print(f"{user_name} has left in options menu...")
+        can_run = False
+        running = False
+
     if option == '1':
+
         while running:
-            id_session = s_client.recv(24).decode(FORMAT)
-            password_session = s_client.recv(24).decode(FORMAT)
+
+            try:
+                id_session = s_client.recv(24).decode(FORMAT)
+                password_session = s_client.recv(24).decode(FORMAT)
+            except ConnectionAbortedError:
+                print(f"{user_name} disconnected on creating a session...")
+                running = False
+                break
+            except ConnectionResetError:
+                print(f"{user_name} disconnected on joining a session...")
+                running = False
+                break
+
+            if id_session == "" or password_session == "":
+                can_run = False
+                break
+
+
             if not session.id_is_already(id_session):
                 s_client.send(id_session.encode(FORMAT))
                 session.set_id_and_password(id_session, password_session)
@@ -43,11 +75,22 @@ def handling(user_name, s_client, h_client, stop_thread):
                 running = False
             else:
                 s_client.send("already id".encode(FORMAT))
+
     elif option == '2':
         running = True
         while running:
-            id_session = s_client.recv(24).decode(FORMAT)
-            password_session = s_client.recv(24).decode(FORMAT)
+
+            try:
+                id_session = s_client.recv(24).decode(FORMAT)
+                password_session = s_client.recv(24).decode(FORMAT)
+            except ConnectionAbortedError:
+                print(f"{user_name} disconnected on joining a session...")
+                break
+            except ConnectionResetError:
+                print(f"{user_name} disconnected on joining a session...")
+                running = False
+                break
+
             if session.id_is_already(id_session):
                 index = 0
                 for i in sessions:
@@ -66,37 +109,45 @@ def handling(user_name, s_client, h_client, stop_thread):
             else:
                 s_client.send("id doesn't exist...".encode(FORMAT))
 
-    running = True
-    while running:
+    if can_run:
+        running = True
+        while running:
 
-        try:
-            c_data = s_client.recv(500).decode(FORMAT)
-        except ConnectionResetError:
-            running = False
-            break
-        except ConnectionAbortedError:
-            running = False
-            break
+            try:
+                c_data = s_client.recv(500).decode(FORMAT)
+            except ConnectionResetError:
+                break
+            except ConnectionAbortedError:
+                break
+            except OSError:
+                break
 
-        print(f"{user_name}: {c_data}")
+            print(f"{user_name}: {c_data}")
 
-        for i in sessions:
-            for j in i[1:]:
-                if i[0][0] == id_session:
-                    if j[1] == s_client:
-                        if j[-1] == True:
-                            running = False
-                    else:
-                        j[1].send(f"{user_name}: {c_data}".encode(FORMAT))
+            for i in sessions:
+                for j in i[1:]:
+
+                    if i[0][0] == id_session:
+                        if j[1] == s_client:
+                            if j[-1] == True:
+                                running = False
+                        else:
+                            j[1].send(f"{user_name}: {c_data}".encode(FORMAT))
 
 
 
     for i in sessions:
         for j in i[1:]:
+
             if j[1] != s_client:
-                j[1].send(f"Server: {user_name} has left...".encode(FORMAT))
+
+                try:
+                    j[1].send(f"Server: {user_name} has left... C'EST ça QUI FAIL".encode(FORMAT))
+                except OSError:
+                    pass
 
     s_client.close()
+
     index = 0
     for i in sessions:
         for j in i[1:]:
@@ -107,13 +158,19 @@ def handling(user_name, s_client, h_client, stop_thread):
 
     for i in sessions:
         if len(i) == 1 and i != [["main_session", "any"]]:
+            session.del_id_and_password(i[0])
             sessions.remove(i)
 
 def admin():
     global sessions
     running = True
     while running:
-        user_input = input("")
+
+        try:
+            user_input = input("")
+        except EOFError:
+            running = False
+            break
 
         os.system("cls")
         print("""
@@ -121,6 +178,7 @@ def admin():
             1: Number of sessions
             2 <username>: remove a client
             3: list of usernames client
+            4: Show list of sessions
         """)
 
         if user_input == '0':
@@ -160,20 +218,29 @@ print("""
     0: shutdown the server
     1: Number of clients connected
     2 <username>: remove a client
-    3: Instructions
+    3: list of usernames client
+    4: Show list of sessions
 """)
 
 while server_on:
 
     try:
         s_client, h_client = socket.accept()
+
     except OSError:
         for i in sessions:
             for j in i[1:]:
                 j[1].close()
         print("> Server shutdowning <")
-        server_on = False
         break
+
+    except KeyboardInterrupt:
+        for i in sessions:
+            for j in i[1:]:
+                j[1].close()
+        print("> Server shutdowning <")
+        break
+
     user_name = s_client.recv(24).decode(FORMAT)
     sessions[0].append([user_name, s_client, h_client, stop_thread])
     threading.Thread(target=handling, args=(user_name, s_client, h_client, stop_thread)).start()
