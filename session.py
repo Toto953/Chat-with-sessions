@@ -11,3 +11,5 @@ class Session():
 
     def set_id_and_password(self, id_session, password_session):
         self.sessions_id.append([id_session, password_session])
+    def del_id_and_password(self, id_and_session):
+        self.sessions_id.remove(id_and_session)

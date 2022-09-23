@@ -71,8 +71,13 @@ while running:
             print("Error: Server has rebooted...")
             socket.close(); quit()
 
-        socket.send(id_session.encode(FORMAT))
-        socket.send(password_session.encode(FORMAT))
+        try:
+            socket.send(id_session.encode(FORMAT))
+            socket.send(password_session.encode(FORMAT))
+        except ConnectionResetError:
+            print("Error: Server has rebooted...")
+            socket.close(); quit()
+
         response = socket.recv(500).decode(FORMAT)
 
         if response == id_session:
@@ -91,8 +96,13 @@ while running:
             print("Error: Server has rebooted...")
             socket.close(); quit()
 
-        socket.send(id_session.encode(FORMAT))
-        socket.send(password_session.encode(FORMAT))
+        try:
+            socket.send(id_session.encode(FORMAT))
+            socket.send(password_session.encode(FORMAT))
+        except ConnectionResetError:
+            print("Error: Server has rebooted...")
+            socket.close(); quit()
+
         response = socket.recv(500).decode(FORMAT)
 
         if response == id_session:

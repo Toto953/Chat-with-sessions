@@ -28,6 +28,7 @@ def handling(user_name, s_client, h_client, stop_thread):
 
     id_session = ""
     password_session = ""
+    user_in_session = True
 
     print(f"{user_name} has join the main session!")
 
@@ -37,12 +38,14 @@ def handling(user_name, s_client, h_client, stop_thread):
     except ConnectionAbortedError:
         running = False
         can_run = False
+        user_in_session = False
  
 
     if option == "" or option == "disconnected":
         print(f"{user_name} has left in options menu...")
         can_run = False
         running = False
+        user_in_session = False
 
     if option == '1':
 
@@ -53,11 +56,13 @@ def handling(user_name, s_client, h_client, stop_thread):
                 password_session = s_client.recv(24).decode(FORMAT)
             except ConnectionAbortedError:
                 print(f"{user_name} disconnected on creating a session...")
-                running = False
+                can_run = False
+                user_in_session = False
                 break
             except ConnectionResetError:
                 print(f"{user_name} disconnected on joining a session...")
-                running = False
+                can_run = False
+                user_in_session = False
                 break
 
             if id_session == "" or password_session == "":
@@ -85,10 +90,13 @@ def handling(user_name, s_client, h_client, stop_thread):
                 password_session = s_client.recv(24).decode(FORMAT)
             except ConnectionAbortedError:
                 print(f"{user_name} disconnected on joining a session...")
+                can_run = False
+                user_in_session = False
                 break
             except ConnectionResetError:
                 print(f"{user_name} disconnected on joining a session...")
-                running = False
+                can_run = False
+                user_in_session = False
                 break
 
             if session.id_is_already(id_session):
@@ -119,8 +127,6 @@ def handling(user_name, s_client, h_client, stop_thread):
                 break
             except ConnectionAbortedError:
                 break
-            except OSError:
-                break
 
             print(f"{user_name}: {c_data}")
 
@@ -134,17 +140,16 @@ def handling(user_name, s_client, h_client, stop_thread):
                         else:
                             j[1].send(f"{user_name}: {c_data}".encode(FORMAT))
 
-
-
     for i in sessions:
         for j in i[1:]:
 
             if j[1] != s_client:
-
-                try:
-                    j[1].send(f"Server: {user_name} has left... C'EST ça QUI FAIL".encode(FORMAT))
-                except OSError:
-                    pass
+                if i[0][0] == id_session:
+                    if user_in_session:
+                        try:
+                            j[1].send(f"Server: {user_name} has left the \"{id_session}\" session...".encode(FORMAT))
+                        except OSError:
+                            pass
 
     s_client.close()
 
